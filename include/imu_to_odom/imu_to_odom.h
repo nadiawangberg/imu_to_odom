@@ -18,7 +18,7 @@ class OdomPredictor {
  public:
   OdomPredictor(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private);
 
-  void odometryCallback(const nav_msgs::OdometryConstPtr& msg);
+  // void odometryCallback(const nav_msgs::OdometryConstPtr& msg);
 
   void imuCallback(const sensor_msgs::ImuConstPtr& msg);
 
@@ -31,6 +31,7 @@ class OdomPredictor {
 
   void publishTF();
 
+  bool has_imu_meas = false;
   bool have_odom_;
   bool have_bias_;
 
@@ -39,7 +40,7 @@ class OdomPredictor {
 
   ros::Subscriber imu_sub_;
   ros::Subscriber imu_bias_sub_;
-  ros::Subscriber odometry_sub_;
+  //ros::Subscriber odometry_sub_;
 
   ros::Publisher odom_pub_;
   ros::Publisher transform_pub_;

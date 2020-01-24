@@ -14,15 +14,59 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
       nh_.subscribe("imu", kROSQueueLength, &OdomPredictor::imuCallback, this);
   imu_bias_sub_ = nh_.subscribe("imu_bias", kROSQueueLength,
                                 &OdomPredictor::imuBiasCallback, this);
-  odometry_sub_ = nh_.subscribe("odometry", kROSQueueLength,
-                                &OdomPredictor::odometryCallback, this);
+  //odometry_sub_ = nh_.subscribe("odometry", kROSQueueLength,
+  //                              &OdomPredictor::odometryCallback, this);
 
-  odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("predicted_odometry",
+  odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("imu_odometry",
                                                         kROSQueueLength);
   transform_pub_ = nh_private_.advertise<geometry_msgs::TransformStamped>(
-      "predicted_transform", kROSQueueLength);
-}
+      "imu_transform", kROSQueueLength);
 
+
+  // Initialize pose
+  //estimate_timestamp_ = ros::Time::now(); // -1
+  //bool has_imu_meas = false; 
+
+  geometry_msgs::Point pos;
+  geometry_msgs::Quaternion quat;
+  geometry_msgs::Pose pose;
+
+  pos.x = 0; 
+  pos.y = 0; 
+  pos.z = 0;
+  quat.x = 1;
+  quat.y = 0;
+  quat.z = 0;
+  quat.w = 0;
+
+  pose.position = pos;
+  pose.orientation = quat;
+
+  tf::poseMsgToKindr(pose, &transform_);
+
+  // itialize the rest
+  /*
+  c =                 {1 0 0 0 0 0
+                      0 1 0 0 0 0 
+                      0 0 1 0 0 0
+                      0 0 0 1 0 0 
+                      0 0 0 0 1 0 
+                      0 0 0 0 0 1};
+  */
+  linear_velocity_ = {0, 0, 0};
+  angular_velocity_ = {0, 0, 0};
+  /*
+  twist_covariance_ = {1 0 0 0 0 0
+                      0 1 0 0 0 0 
+                      0 0 1 0 0 0
+                      0 0 0 1 0 0 
+                      0 0 0 0 1 0 
+                      0 0 0 0 0 1};
+  */
+  frame_id_ = "world";
+  child_frame_id_ = "drone";
+}
+/*
 void OdomPredictor::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
   if (!have_bias_) {
     return;
@@ -61,6 +105,7 @@ void OdomPredictor::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
 
   have_odom_ = true;
 }
+*/
 
 void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
   if (msg->header.stamp < imu_queue_.back().header.stamp) {
@@ -72,6 +117,7 @@ void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
                      << ". The current imu queue will be reset.");
     imu_queue_.clear();
   }
+  /*
   if (imu_queue_.size() > max_imu_queue_length_) {
     ROS_WARN_STREAM_THROTTLE(
         10, "There has been over "
@@ -81,6 +127,7 @@ void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
                    "once every 10 seconds");
     imu_queue_.pop_front();
   }
+  */
 
   imu_queue_.push_back(*msg);
 
@@ -113,6 +160,14 @@ void OdomPredictor::imuBiasCallback(const sensor_msgs::ImuConstPtr& msg) {
 }
 
 void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
+  if (!has_imu_meas) {
+    estimate_timestamp_ = msg.header.stamp;
+    has_imu_meas = true;
+    return;
+  }
+
+  ROS_ERROR_STREAM("Doing imu integration");
+
   const double delta_time = (msg.header.stamp - estimate_timestamp_).toSec();
 
   const Vector3 kGravity(0.0, 0.0, -9.81);
@@ -135,8 +190,8 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
   // find changes in linear velocity and position
   const Vector3 delta_linear_velocity =
       delta_time * (imu_linear_acceleration +
-                    transform_.getRotation().inverse().rotate(kGravity) -
-                    imu_linear_acceleration_bias_);
+                    transform_.getRotation().inverse().rotate(kGravity) );//  -
+                    //imu_linear_acceleration_bias_);
   transform_.getPosition() =
       transform_.getPosition() +
       transform_.getRotation().rotate(
@@ -162,11 +217,11 @@ void OdomPredictor::publishOdometry() {
   msg.child_frame_id = child_frame_id_;
 
   tf::poseKindrToMsg(transform_, &msg.pose.pose);
-  msg.pose.covariance = pose_covariance_;
+  //msg.pose.covariance = pose_covariance_;
 
   tf::vectorKindrToMsg(linear_velocity_, &msg.twist.twist.linear);
   tf::vectorKindrToMsg(angular_velocity_, &msg.twist.twist.angular);
-  msg.twist.covariance = twist_covariance_;
+  //msg.twist.covariance = twist_covariance_;
 
   odom_pub_.publish(msg);
 }
