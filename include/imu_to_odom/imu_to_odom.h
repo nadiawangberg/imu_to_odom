@@ -1,5 +1,5 @@
-#ifndef ODOM_PREDICTOR_ODOM_PREDICTOR_H_
-#define ODOM_PREDICTOR_ODOM_PREDICTOR_H_
+#ifndef IMU_TO_ODOM_IMU_TO_ODOM_H_
+#define IMU_TO_ODOM_IMU_TO_ODOM_H_ 
 
 #include <geometry_msgs/TransformStamped.h>
 #include <kindr/minimal/quat-transformation.h>
@@ -66,4 +66,4 @@ class OdomPredictor {
   boost::array<double, 36ul> twist_covariance_;
 };
 
-#endif  // ODOM_PREDICTOR_ODOM_PREDICTOR_H_
+#endif  // IMU_TO_ODOM_IMU_TO_ODOM_H_

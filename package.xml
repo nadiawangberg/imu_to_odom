@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>odom_predictor</name>
+  <name>imu_to_odom</name>
   <version>0.0.0</version>
-  <description>Predict future odom readings through IMU integration </description>
+  <description>finds odom through IMU integration, based on eth odom predict </description>
 
   <author email="ztaylor@ethz.ch">Zachary Taylor</author>
 
