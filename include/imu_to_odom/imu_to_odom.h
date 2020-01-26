@@ -10,6 +10,9 @@
 #include <tf/transform_broadcaster.h>
 #include <list>
 
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 typedef kindr::minimal::QuatTransformation Transformation;
 typedef kindr::minimal::RotationQuaternion Rotation;
 typedef Transformation::Vector3 Vector3;
@@ -65,6 +68,8 @@ class OdomPredictor {
 
   boost::array<double, 36ul> pose_covariance_;
   boost::array<double, 36ul> twist_covariance_;
+
+  Rotation orientation_;
 };
 
 #endif  // IMU_TO_ODOM_IMU_TO_ODOM_H_

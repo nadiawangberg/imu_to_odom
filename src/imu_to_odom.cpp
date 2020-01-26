@@ -28,19 +28,20 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
   //bool has_imu_meas = false; 
 
   geometry_msgs::Point pos;
-  geometry_msgs::Quaternion quat;
   geometry_msgs::Pose pose;
 
   pos.x = 0; 
   pos.y = 0; 
   pos.z = 0;
-  quat.x = 1;
+  
+  geometry_msgs::Quaternion quat;
+  quat.x = 0;
   quat.y = 0;
   quat.z = 0;
-  quat.w = 0;
-
-  pose.position = pos;
+  quat.w = 1.0;
   pose.orientation = quat;
+  
+  pose.position = pos;
 
   tf::poseMsgToKindr(pose, &transform_);
 
@@ -108,6 +109,24 @@ void OdomPredictor::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
 */
 
 void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
+  
+  //tf::poseMsgToKindr(pose, &transform_);
+
+  // if we have orientation
+  
+  //normalize
+  /*
+  tf2::Quaternion quat_tf;
+  tf2::fromMsg(msg->orientation, quat_tf);
+  quat_tf.normalize();
+  geometry_msgs::Quaternion quat = tf2::toMsg(quat_tf);
+  */
+  //normalize
+
+  ROS_ERROR_STREAM("IMU INTEGRATION FAILED, RESETING EVERYTHING: %f, %f, %f, %f" << msg->orientation.x << msg->orientation.y << msg->orientation.z << msg->orientation.w);
+  tf::quaternionMsgToKindr(msg->orientation, &orientation_);
+  transform_.getRotation() = orientation_;
+  
   if (msg->header.stamp < imu_queue_.back().header.stamp) {
     ROS_ERROR_STREAM("Latest IMU message occured at time: "
                      << msg->header.stamp
@@ -131,9 +150,11 @@ void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
 
   imu_queue_.push_back(*msg);
 
+  /*
   if (!have_bias_ || !have_odom_) {
     return;
   }
+  */
 
   try {
     integrateIMUData(*msg);
@@ -177,15 +198,19 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
   tf::vectorMsgToKindr(msg.angular_velocity, &imu_angular_velocity);
 
   // find changes in angular velocity and rotation delta
+  /*
   const Vector3 final_angular_velocity =
       (imu_angular_velocity - imu_angular_velocity_bias_);
   const Vector3 delta_angle =
       delta_time * (final_angular_velocity + angular_velocity_) / 2.0;
   angular_velocity_ = final_angular_velocity;
+  */
 
   // apply half of the rotation delta
+  /*
   const Rotation half_delta_rotation = Rotation::exp(delta_angle / 2.0);
   transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
+  */
 
   // find changes in linear velocity and position
   const Vector3 delta_linear_velocity =
@@ -196,10 +221,10 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
       transform_.getPosition() +
       transform_.getRotation().rotate(
           delta_time * (linear_velocity_ + delta_linear_velocity / 2.0));
-  linear_velocity_ += delta_linear_velocity;
+  linear_velocity_ += delta_linear_velocity; // AP2020 : change in displacement should be rotated with curr rotation
 
   // apply the other half of the rotation delta
-  transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
+  //transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
 
   estimate_timestamp_ = msg.header.stamp;
 }
