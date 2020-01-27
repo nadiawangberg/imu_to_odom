@@ -65,7 +65,7 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
                       0 0 0 0 0 1};
   */
   frame_id_ = "world";
-  child_frame_id_ = "drone";
+  child_frame_id_ = "odom";
 }
 /*
 void OdomPredictor::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
@@ -109,21 +109,11 @@ void OdomPredictor::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
 */
 
 void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
-  
-  //tf::poseMsgToKindr(pose, &transform_);
+  if (msg->orientation_covariance[0] == -1.0) {
+    ROS_ERROR_STREAM("I dont have orientation!!" << msg->orientation_covariance[0]);
+  }
 
-  // if we have orientation
-  
-  //normalize
-  /*
-  tf2::Quaternion quat_tf;
-  tf2::fromMsg(msg->orientation, quat_tf);
-  quat_tf.normalize();
-  geometry_msgs::Quaternion quat = tf2::toMsg(quat_tf);
-  */
-  //normalize
-
-  ROS_ERROR_STREAM("IMU INTEGRATION FAILED, RESETING EVERYTHING: %f, %f, %f, %f" << msg->orientation.x << msg->orientation.y << msg->orientation.z << msg->orientation.w);
+  //ROS_ERROR_STREAM("quat" << msg->orientation.x << msg->orientation.y << msg->orientation.z << msg->orientation.w);
   tf::quaternionMsgToKindr(msg->orientation, &orientation_);
   transform_.getRotation() = orientation_;
   
@@ -187,7 +177,7 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
     return;
   }
 
-  ROS_ERROR_STREAM("Doing imu integration");
+  ROS_INFO("Doing imu integration");
 
   const double delta_time = (msg.header.stamp - estimate_timestamp_).toSec();
 
@@ -230,9 +220,11 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
 }
 
 void OdomPredictor::publishOdometry() {
+  /*
   if (!have_odom_) {
     return;
   }
+  */
 
   nav_msgs::Odometry msg;
 
