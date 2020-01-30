@@ -14,18 +14,12 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
       nh_.subscribe("imu", kROSQueueLength, &OdomPredictor::imuCallback, this);
   imu_bias_sub_ = nh_.subscribe("imu_bias", kROSQueueLength,
                                 &OdomPredictor::imuBiasCallback, this);
-  //odometry_sub_ = nh_.subscribe("odometry", kROSQueueLength,
-  //                              &OdomPredictor::odometryCallback, this);
 
   odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("imu_odometry",
                                                         kROSQueueLength);
   transform_pub_ = nh_private_.advertise<geometry_msgs::TransformStamped>(
       "imu_transform", kROSQueueLength);
 
-
-  // Initialize pose
-  //estimate_timestamp_ = ros::Time::now(); // -1
-  //bool has_imu_meas = false; 
 
   geometry_msgs::Point pos;
   geometry_msgs::Pose pose;
@@ -45,7 +39,6 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
 
   tf::poseMsgToKindr(pose, &transform_);
 
-  // itialize the rest
   /*
   c =                 {1 0 0 0 0 0
                       0 1 0 0 0 0 
@@ -67,56 +60,18 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
   frame_id_ = "world";
   child_frame_id_ = "odom";
 }
-/*
-void OdomPredictor::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
-  if (!have_bias_) {
-    return;
-  }
 
-  // clear old IMU measurements
-  while (!imu_queue_.empty() &&
-         imu_queue_.front().header.stamp < msg->header.stamp) {
-    imu_queue_.pop_front();
-  }
-
-  // extract useful information from message
-  tf::poseMsgToKindr(msg->pose.pose, &transform_);
-  pose_covariance_ = msg->pose.covariance;
-  tf::vectorMsgToKindr(msg->twist.twist.linear, &linear_velocity_);
-  tf::vectorMsgToKindr(msg->twist.twist.angular, &angular_velocity_);
-  twist_covariance_ = msg->twist.covariance;
-  frame_id_ = msg->header.frame_id;
-  child_frame_id_ = msg->child_frame_id;
-
-  // reintegrate IMU messages
-  estimate_timestamp_ = msg->header.stamp;
-
-  try {
-    for (const sensor_msgs::Imu& imu_msg : imu_queue_) {
-      integrateIMUData(imu_msg);
-    }
-  } catch (std::exception& e) {
-    ROS_ERROR_STREAM(
-        "IMU INTEGRATION FAILED, RESETING EVERYTHING: " << e.what());
-    have_bias_ = false;
-    have_odom_ = false;
-    imu_queue_.clear();
-    return;
-  }
-
-  have_odom_ = true;
-}
-*/
 
 void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
   if (msg->orientation_covariance[0] == -1.0) {
-    ROS_ERROR_STREAM("I dont have orientation!!" << msg->orientation_covariance[0]);
+    have_orientation_ = false;
+  }
+  else {
+    tf::quaternionMsgToKindr(msg->orientation, &orientation_);
+    transform_.getRotation() = orientation_;
   }
 
-  //ROS_ERROR_STREAM("quat" << msg->orientation.x << msg->orientation.y << msg->orientation.z << msg->orientation.w);
-  tf::quaternionMsgToKindr(msg->orientation, &orientation_);
-  transform_.getRotation() = orientation_;
-  
+
   if (msg->header.stamp < imu_queue_.back().header.stamp) {
     ROS_ERROR_STREAM("Latest IMU message occured at time: "
                      << msg->header.stamp
@@ -126,25 +81,8 @@ void OdomPredictor::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
                      << ". The current imu queue will be reset.");
     imu_queue_.clear();
   }
-  /*
-  if (imu_queue_.size() > max_imu_queue_length_) {
-    ROS_WARN_STREAM_THROTTLE(
-        10, "There has been over "
-                << max_imu_queue_length_
-                << " IMU messages since the last odometry update. The oldest "
-                   "measurement will be forgotten. This message is printed "
-                   "once every 10 seconds");
-    imu_queue_.pop_front();
-  }
-  */
 
   imu_queue_.push_back(*msg);
-
-  /*
-  if (!have_bias_ || !have_odom_) {
-    return;
-  }
-  */
 
   try {
     integrateIMUData(*msg);
@@ -177,8 +115,6 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
     return;
   }
 
-  ROS_INFO("Doing imu integration");
-
   const double delta_time = (msg.header.stamp - estimate_timestamp_).toSec();
 
   const Vector3 kGravity(0.0, 0.0, -9.81);
@@ -187,45 +123,39 @@ void OdomPredictor::integrateIMUData(const sensor_msgs::Imu& msg) {
   tf::vectorMsgToKindr(msg.linear_acceleration, &imu_linear_acceleration);
   tf::vectorMsgToKindr(msg.angular_velocity, &imu_angular_velocity);
 
-  // find changes in angular velocity and rotation delta
-  /*
   const Vector3 final_angular_velocity =
       (imu_angular_velocity - imu_angular_velocity_bias_);
   const Vector3 delta_angle =
       delta_time * (final_angular_velocity + angular_velocity_) / 2.0;
   angular_velocity_ = final_angular_velocity;
-  */
 
   // apply half of the rotation delta
-  /*
   const Rotation half_delta_rotation = Rotation::exp(delta_angle / 2.0);
-  transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
-  */
+
+  if (!have_orientation_) {
+    transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
+  }
 
   // find changes in linear velocity and position
   const Vector3 delta_linear_velocity =
       delta_time * (imu_linear_acceleration +
-                    transform_.getRotation().inverse().rotate(kGravity) );//  -
-                    //imu_linear_acceleration_bias_);
+                    transform_.getRotation().inverse().rotate(kGravity) -
+                    imu_linear_acceleration_bias_);
   transform_.getPosition() =
       transform_.getPosition() +
       transform_.getRotation().rotate(
           delta_time * (linear_velocity_ + delta_linear_velocity / 2.0));
-  linear_velocity_ += delta_linear_velocity; // AP2020 : change in displacement should be rotated with curr rotation
+  linear_velocity_ += delta_linear_velocity;
 
+  if (!have_orientation_) {
   // apply the other half of the rotation delta
-  //transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
+    transform_.getRotation() = transform_.getRotation() * half_delta_rotation;
+  }
 
   estimate_timestamp_ = msg.header.stamp;
 }
 
 void OdomPredictor::publishOdometry() {
-  /*
-  if (!have_odom_) {
-    return;
-  }
-  */
-
   nav_msgs::Odometry msg;
 
   msg.header.frame_id = frame_id_;
@@ -244,10 +174,6 @@ void OdomPredictor::publishOdometry() {
 }
 
 void OdomPredictor::publishTF() {
-  if (!have_odom_) {
-    return;
-  }
-
   geometry_msgs::TransformStamped msg;
 
   msg.header.frame_id = frame_id_;

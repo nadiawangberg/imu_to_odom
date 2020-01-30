@@ -13,6 +13,8 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <math.h>
+
 typedef kindr::minimal::QuatTransformation Transformation;
 typedef kindr::minimal::RotationQuaternion Rotation;
 typedef Transformation::Vector3 Vector3;
@@ -63,13 +65,14 @@ class OdomPredictor {
   Vector3 linear_velocity_;
   Vector3 angular_velocity_;
 
-  Vector3 imu_linear_acceleration_bias_;
-  Vector3 imu_angular_velocity_bias_;
+  Vector3 imu_linear_acceleration_bias_ = {0, 0, 0};
+  Vector3 imu_angular_velocity_bias_ = {0, 0, 0};
 
   boost::array<double, 36ul> pose_covariance_;
   boost::array<double, 36ul> twist_covariance_;
 
   Rotation orientation_;
+  bool have_orientation_ = true;
 };
 
 #endif  // IMU_TO_ODOM_IMU_TO_ODOM_H_
