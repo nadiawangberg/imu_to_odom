@@ -11,7 +11,7 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
 
   constexpr size_t kROSQueueLength = 100;
   imu_sub_ =
-      nh_.subscribe("imu", kROSQueueLength, &OdomPredictor::imuCallback, this);
+      nh_.subscribe("/uav/sensors/imu", kROSQueueLength, &OdomPredictor::imuCallback, this);
   imu_bias_sub_ = nh_.subscribe("imu_bias", kROSQueueLength,
                                 &OdomPredictor::imuBiasCallback, this);
 
