@@ -26,7 +26,7 @@ OdomPredictor::OdomPredictor(const ros::NodeHandle& nh,
 
   pos.x = 0; 
   pos.y = 0; 
-  pos.z = 0;
+  pos.z = 1.0;
   
   geometry_msgs::Quaternion quat;
   quat.x = 0;
